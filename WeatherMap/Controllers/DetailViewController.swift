@@ -9,14 +9,11 @@ import UIKit
 
 class DetailViewController : UIViewController {
     
-    var latitude: Double = 0
-    var longitude: Double = 0
-    var city = "", country = ""
-    var locationCoordinates: CLLocationCoordinate2D?
     var cityLabel = UILabel(font: .systemFont(ofSize: 16, weight: .heavy))
     var countryLabel = UILabel(font: .systemFont(ofSize: 14, weight: .bold))
     var dateLabel = UILabel(font: .systemFont(ofSize: 16, weight: .semibold), textColor: .secondaryLabel)
     var containerView = UIView()
+    private var isShowingLoading = false
     var tempLabel = UILabel(font: .systemFont(ofSize: 62, weight: .black))
     let configuration = UIImage.SymbolConfiguration(pointSize: 24, weight: .black, scale: .large)
     
@@ -31,15 +28,69 @@ class DetailViewController : UIViewController {
     var weatherLabel = UILabel(font: .systemFont(ofSize: 32),textColor: .label)
     var feelsTempLabel = UILabel(font: .systemFont(ofSize: 16, weight: .semibold), textColor: .gray)
     var tableView = UITableView()
-    var forecasts:[ForecastDay] = []
     
-    var current: CurrentWeather? {
+    var viewModel: DetailViewModel?
+    
+    // Deprecated shim for backward compatibility:
+    var locationCoordinates: CLLocationCoordinate2D? {
         didSet {
+            if let coord = locationCoordinates {
+                if viewIfLoaded == nil { _ = self.view } // ensure view is loaded
+                if viewModel == nil {
+                    configure(with: coord)
+                } else {
+                    viewModel?.updateCoordinate(coord)
+                }
+            }
+        }
+    }
+    
+    func configure(with coordinate: CLLocationCoordinate2D) {
+        let vm = DetailViewModel(coordinate: coordinate)
+        bind(to: vm)
+        self.viewModel = vm
+        // kick off data
+        vm.resolvePlace()
+        vm.fetchWeather()
+    }
+    
+    private func bind(to vm: DetailViewModel) {
+        vm.onCityCountryChange = { [weak self] city, country in
+            DispatchQueue.main.async {
+                self?.cityLabel.text = city
+                self?.countryLabel.text = country
+            }
+        }
+        vm.onCurrentChange = { [weak self] current in
             guard let data = current else { return }
-            DispatchQueue.main.async{
-                self.tempLabel.text = String(format: "%.1f", data.temp) + "℃"
-                self.weatherLabel.text = data.weather.first?.description
-                self.feelsTempLabel.text = "Feels like" + String(format: "%.1f", data.feels_like) + "℃"
+            DispatchQueue.main.async {
+                self?.tempLabel.text = String(format: "%.1f", data.temp) + "℃"
+                self?.weatherLabel.text = data.weather.first?.description
+                self?.feelsTempLabel.text = "Feels like" + String(format: "%.1f", data.feels_like) + "℃"
+            }
+        }
+        vm.onForecastsChange = { [weak self] _ in
+            DispatchQueue.main.async { self?.tableView.reloadData() }
+        }
+        vm.onFavouriteChange = { [weak self] isFav in
+            DispatchQueue.main.async {
+                if isFav {
+                    self?.favouritesButton.setTitle("Remove from favourites", for: .normal)
+                    self?.favouritesButton.setTitleColor(.systemRed, for: .normal)
+                } else {
+                    self?.favouritesButton.setTitle("add to favourites", for: .normal)
+                    self?.favouritesButton.setTitleColor(.systemPurple, for: .normal)
+                }
+            }
+        }
+        vm.onLoadingChange = { [weak self] isLoading in
+            if isLoading { self?.showLoadingIndicator() } else { self?.dismissLoadingIndicator() }
+        }
+        vm.onError = { [weak self] message in
+            DispatchQueue.main.async {
+                let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self?.present(alert, animated: true)
             }
         }
     }
@@ -48,14 +99,10 @@ class DetailViewController : UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .secondarySystemBackground
         setupUI()
-        checkCoordinates()
         navigationController?.navigationBar.prefersLargeTitles = false
         navigationController?.navigationBar.backIndicatorImage = backButton
         navigationController?.navigationBar.backIndicatorTransitionMaskImage = backButton
-        
-        
     }
-    
     
     func setupUI(){
         
@@ -99,72 +146,28 @@ class DetailViewController : UIViewController {
         favouritesButton.setTitleColor(.systemPurple, for: .normal)
         favouritesButton.anchor(top: tableView.bottomAnchor, paddingTop: 8)
         favouritesButton.centerX(inView: view)
+        favouritesButton.addTarget(self, action: #selector(toggleFavouriteTapped), for: .touchUpInside)
         
     }
     
-    func checkCoordinates(){
-        if let checkedLatitude = locationCoordinates?.latitude, let checkedLongitude = locationCoordinates?.longitude {
-            latitude = checkedLatitude
-            longitude = checkedLongitude
-            
-            let placeMark = CLLocation(latitude: latitude, longitude: longitude)
-            placeMark.fetchLocationInformation{[weak self] city, country, error in
-                guard let self = self, let city = city, let country = country, error == nil else {
-                    return
-                }
-                
-                self.city = city
-                self.country = country
-                self.updateValues()
-                self.checkIfLocationIsSaved()
-                
-            }
+    @objc private func toggleFavouriteTapped() {
+        favouritesButton.isEnabled = false
+        viewModel?.toggleFavourite()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.favouritesButton.isEnabled = true
         }
-        getWeather()
-        checkIfLocationIsSaved()
     }
     
-    func updateValues(){
-        cityLabel.text = city
-        countryLabel.text = country
-    }
-    func getWeather(){
-        showLoadingIndicator()
-        
-        Task {
-            do {
-                let current = try await NetworkService.shared.getCurrentWeather(latitude: latitude, longitude: longitude, lang: "en")
-                self.current = current
-                
-                do {
-                    let daily = try await NetworkService.shared.getDailyForecast(latitude: latitude, longitude: longitude, lang: "en")
-                    self.forecasts = daily
-                } catch {
-                    // Fallback to 5-day/3-hour free API aggregated per day
-                    let fiveDay = try await NetworkService.shared.getFiveDayForecast(latitude: latitude, longitude: longitude, lang: "en")
-                    self.forecasts = fiveDay
-                }
-                
-                DispatchQueue.main.async {
-                    self.tableView.reloadData()
-                    self.dismissLoadingIndicator()
-                }
-            } catch {
-                print("Weather fetch error:", error)
-                self.dismissLoadingIndicator()
-            }
-        }
-    }
     func showLoadingIndicator(){
+        guard !isShowingLoading else { return }
+        isShowingLoading = true
         view.addSubview(containerView)
         containerView.fillSuperview()
         containerView.backgroundColor = .systemBackground
         containerView.alpha = 0
-        
         UIView.animate(withDuration: 0.25){
             self.containerView.alpha = 0.8
         }
-        
         let activityIndicator = UIActivityIndicatorView(style: .large)
         containerView.addSubview(activityIndicator)
         activityIndicator.center(inView: view)
@@ -175,39 +178,20 @@ class DetailViewController : UIViewController {
     func  dismissLoadingIndicator(){
         DispatchQueue.main.async{
             self.containerView.removeFromSuperview()
+            self.isShowingLoading = false
         }
-    }
-    func checkIfLocationIsSaved(){
-        
-        if CoreDataService.shared.locationExists(latitude: latitude, longitude: longitude){
-            favouritesButton.setTitle( "Remove from favourites", for: .normal)
-            favouritesButton.setTitleColor(.systemRed, for: .normal)
-            
-            favouritesButton.addTarget(self, action: #selector(removeLocationFromCoreData), for: .touchUpInside)
-        }else{
-            favouritesButton.setTitle( "add to favourites", for: .normal)
-            favouritesButton.setTitleColor(.systemPurple, for: .normal)
-            
-            favouritesButton.addTarget(self, action: #selector(addLocationToCoreData), for: .touchUpInside)
-        }
-    }
-    
-    @objc func removeLocationFromCoreData(){
-        print("removed")
-        CoreDataService.shared.deleteLocation(latitude: latitude, longitude: longitude)
-        checkIfLocationIsSaved()
-    }
-    @objc func addLocationToCoreData(){
-        print("Added")
-        CoreDataService.shared.addLocation(name: city, country: country, longitude: longitude, latitude: latitude)
-        checkIfLocationIsSaved()
     }
 }
 
 extension DetailViewController: UITableViewDelegate, UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let day = forecasts[indexPath.row]
+
+        guard let vm = viewModel, indexPath.row < vm.forecasts.count else {
+            return UITableViewCell()
+        }
+        let day = vm.forecasts[indexPath.row]
+
         let cell = tableView.dequeueReusableCell(withIdentifier: "Detail", for: indexPath)
 
         var config = cell.defaultContentConfiguration()
@@ -235,8 +219,7 @@ extension DetailViewController: UITableViewDelegate, UITableViewDataSource {
     }
         
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        
-        return forecasts.count
+        return viewModel?.forecasts.count ?? 0
     }
     
     private func symbolName(for iconCode: String) -> String {

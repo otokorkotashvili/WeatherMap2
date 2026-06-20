@@ -37,6 +37,7 @@ class MapViewController : UIViewController {
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.requestWhenInUseAuthorization()
+        map.userTrackingMode = .follow
         map.addGestureRecognizer(longPress)
         longPress.addTarget(self, action: #selector(didAddAnnotation))
         populateMapWithAnnotations()
@@ -47,12 +48,9 @@ class MapViewController : UIViewController {
         
     }
     func setupregion(){
-        
-        let centerCoordinate = CLLocationCoordinate2D(latitude: 40.8518, longitude: 14.2681)
-        let span = MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
-        let region = MKCoordinateRegion(center: centerCoordinate, span: span)
-        map.setRegion(region, animated: true)
+        // Show user location and follow when available
         map.showsUserLocation = true
+        map.userTrackingMode = .follow
     }
     
     func addsegmentedcontrol(){
@@ -159,7 +157,8 @@ extension MapViewController: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
-            manager.startUpdatingLocation()
+            map.userTrackingMode = .follow
+            manager.requestLocation()
         default:
             break
         }
@@ -168,7 +167,8 @@ extension MapViewController: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         switch status {
         case .authorizedWhenInUse, .authorizedAlways:
-            manager.startUpdatingLocation()
+            map.userTrackingMode = .follow
+            manager.requestLocation()
         default:
             break
         }
@@ -185,6 +185,10 @@ extension MapViewController: CLLocationManagerDelegate {
             vc.locationCoordinates = location.coordinate
             navigationController?.pushViewController(vc, animated: true)
         }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Location error:", error)
     }
 }
 

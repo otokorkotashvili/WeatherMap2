@@ -13,6 +13,10 @@ class SearchViewController: UITableViewController {
     let searchController = UISearchController()
     var matchingLocations: [MKMapItem] = []
     
+    private var searchTimer: Timer?
+    private var currentSearch: MKLocalSearch?
+    private var lastQuery: String = ""
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
@@ -34,27 +38,62 @@ class SearchViewController: UITableViewController {
         searchController.searchBar.delegate = self
         navigationItem.searchController = searchController
     }
+    
+    deinit {
+        searchTimer?.invalidate()
+        currentSearch?.cancel()
+    }
 }
 
 // MARK: - UISearchResultsUpdating
 extension SearchViewController: UISearchResultsUpdating {
     func updateSearchResults(for searchController: UISearchController) {
-        performSearch()
+        // Debounce input to avoid spamming requests on every keystroke
+        searchTimer?.invalidate()
+        searchTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in
+            self?.performSearch()
+        }
     }
     
     func performSearch() {
-        guard let searchBarText = searchController.searchBar.text else { return }
-        
+        guard let rawText = searchController.searchBar.text else { return }
+        let query = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // If query is empty, cancel any in-flight search and clear results
+        if query.isEmpty {
+            currentSearch?.cancel()
+            currentSearch = nil
+            lastQuery = ""
+            matchingLocations = []
+            tableView.reloadData()
+            return
+        }
+
+        // Cancel any in-flight search before starting a new one
+        currentSearch?.cancel()
+        lastQuery = query
+
         let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = searchBarText
+        request.naturalLanguageQuery = query
+
         let search = MKLocalSearch(request: request)
-        search.start { response, error in
-            if let error = error {
-                print("Search Failed", error)
+        currentSearch = search
+
+        search.start { [weak self] response, error in
+            guard let self = self else { return }
+            defer { self.currentSearch = nil }
+
+            if let nsError = error as NSError? {
+                // Ignore cancellations
+                if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return }
+                print("Search Failed", nsError)
                 return
             }
+
             guard let response = response else { return }
-            if !searchBarText.isEmpty{
+
+            // Only apply results if they match the most recent query
+            if query == self.lastQuery {
                 self.matchingLocations = response.mapItems
                 self.tableView.reloadData()
             }
@@ -66,6 +105,11 @@ extension SearchViewController: UISearchResultsUpdating {
 extension SearchViewController: UISearchBarDelegate {
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchText.isEmpty {
+            // Cancel pending debounce and any in-flight search
+            searchTimer?.invalidate()
+            currentSearch?.cancel()
+            currentSearch = nil
+            lastQuery = ""
             matchingLocations = []
             self.tableView.reloadData()
         }
