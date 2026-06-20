@@ -31,33 +31,15 @@ class DetailViewController : UIViewController {
     var weatherLabel = UILabel(font: .systemFont(ofSize: 32),textColor: .label)
     var feelsTempLabel = UILabel(font: .systemFont(ofSize: 16, weight: .semibold), textColor: .gray)
     var tableView = UITableView()
-    var forecasts:[Daily] = []
+    var forecasts:[ForecastDay] = []
     
-    var current: Current? {
-        
+    var current: CurrentWeather? {
         didSet {
-            guard let data = current else {
-                return
-            }
+            guard let data = current else { return }
             DispatchQueue.main.async{
                 self.tempLabel.text = String(format: "%.1f", data.temp) + "℃"
-                self.weatherLabel.text = data.weather[0].description
+                self.weatherLabel.text = data.weather.first?.description
                 self.feelsTempLabel.text = "Feels like" + String(format: "%.1f", data.feels_like) + "℃"
-                
-            }
-        }
-    }
-    
-    var weather : WeatherData? {
-        didSet {
-            if let data = weather {
-                for day in data.daily.dropFirst(){
-                    forecasts.append(day)
-                }
-            }
-            
-            DispatchQueue.main.async{
-                self.tableView.reloadData()
             }
         }
     }
@@ -108,7 +90,7 @@ class DetailViewController : UIViewController {
         tableView.delegate = self
         tableView.dataSource = self
         view.addSubview(tableView)
-        tableView.register(DetailTableCell.self, forCellReuseIdentifier: "Detail")
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "Detail")
         tableView.setHeight(300)
         tableView.setWidth(view.frame.size.width)
         tableView.anchor(top: currentStack.bottomAnchor, paddingTop: 8)
@@ -150,21 +132,26 @@ class DetailViewController : UIViewController {
         showLoadingIndicator()
         
         Task {
-            do{
-                let weather = try await NetworkService.shared.getForecast(latitude: latitude, longitude: longitude)
+            do {
+                let current = try await NetworkService.shared.getCurrentWeather(latitude: latitude, longitude: longitude, lang: "en")
+                self.current = current
                 
+                do {
+                    let daily = try await NetworkService.shared.getDailyForecast(latitude: latitude, longitude: longitude, lang: "en")
+                    self.forecasts = daily
+                } catch {
+                    // Fallback to 5-day/3-hour free API aggregated per day
+                    let fiveDay = try await NetworkService.shared.getFiveDayForecast(latitude: latitude, longitude: longitude, lang: "en")
+                    self.forecasts = fiveDay
+                }
+                
+                DispatchQueue.main.async {
+                    self.tableView.reloadData()
+                    self.dismissLoadingIndicator()
+                }
+            } catch {
+                print("Weather fetch error:", error)
                 self.dismissLoadingIndicator()
-                
-                print (weather)
-                
-                self.current = weather.current
-                self.weather = weather
-                
-            }catch let error {
-                
-                print(error)
-                self.dismissLoadingIndicator() 
-                
             }
         }
     }
@@ -221,10 +208,29 @@ extension DetailViewController: UITableViewDelegate, UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let day = forecasts[indexPath.row]
-        let cell = tableView.dequeueReusableCell(withIdentifier: "Detail", for: indexPath) as!
-        DetailTableCell
-        
-        cell.day = day
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Detail", for: indexPath)
+
+        var config = cell.defaultContentConfiguration()
+
+        // Weekday text
+        let date = Date(timeIntervalSince1970: TimeInterval(day.dt))
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateFormat = "EEEE"
+        config.text = formatter.string(from: date)
+
+        // Day temperature
+        config.secondaryText = String(format: "%.1f℃", day.temp.day)
+
+        // Default system icon based on OpenWeather icon code
+        if let iconCode = day.weather.first?.icon {
+            let symbol = UIImage(systemName: symbolName(for: iconCode))
+            config.image = symbol
+            config.imageProperties.tintColor = .systemPurple
+        }
+
+        cell.contentConfiguration = config
+        cell.selectionStyle = .none
         return cell
     }
         
@@ -233,22 +239,17 @@ extension DetailViewController: UITableViewDelegate, UITableViewDataSource {
         return forecasts.count
     }
     
+    private func symbolName(for iconCode: String) -> String {
+        if iconCode.hasPrefix("01") { return "sun.max" }
+        if iconCode.hasPrefix("02") { return "cloud.sun" }
+        if iconCode.hasPrefix("03") { return "cloud" }
+        if iconCode.hasPrefix("04") { return "cloud.fill" }
+        if iconCode.hasPrefix("09") { return "cloud.drizzle" }
+        if iconCode.hasPrefix("10") { return "cloud.rain" }
+        if iconCode.hasPrefix("11") { return "cloud.bolt.rain" }
+        if iconCode.hasPrefix("13") { return "snowflake" }
+        if iconCode.hasPrefix("50") { return "cloud.fog" }
+        return "cloud"
+    }
 }
-//import UIKit
-//import CoreLocation
-
-//class DetailViewController: UIViewController {
-    
- //   var coordinate: CLLocationCoordinate2D?
- //   var locationName: String?
-    
- //   override func viewDidLoad() {
-  //      super.viewDidLoad()
-   //     view.backgroundColor = .systemMint
-   //    title = locationName
-        
-        // აქ მოგვიწევს ამინდის API-დან მონაცემების fetch-ი
-        // coordinate property-ით
-    //}
-//}
 

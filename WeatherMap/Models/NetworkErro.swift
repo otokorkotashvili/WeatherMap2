@@ -8,7 +8,7 @@
 import Foundation
 
 
-enum NetworkError : String, Error {
+enum NetworkErro : String, Error {
     case unableToCompleteNetworkCall = "Unable to complete Network Call"
     case invalidResponse = "Invalid Response"
     case invalidData = "Invalid Data"

@@ -10,8 +10,7 @@ import UIKit
 
 class FavouritesController: UIViewController {
     
-    var locations: [Favourites] = []
-    let coreDataService = CoreDataService()
+    private let viewModel = FavouritesViewModel()
     
     var collectionView: UICollectionView = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewFlowLayout())
     
@@ -21,13 +20,15 @@ class FavouritesController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         title = "Favourites"
-        locations = CoreDataService.shared.fetchLocations()
         setupCollectionView()
         navigationItem.backBarButtonItem = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
         
-        NotificationCenter.default.addObserver(self, selector: #selector(contextObjectsDidChange(_:)), name: Notification.Name.NSManagedObjectContextObjectsDidChange, object: nil)
+        // Bind view model changes to UI updates
+        viewModel.onChange = { [weak self] in
+            self?.collectionView.reloadData()
+        }
         
-        //locations = coreDataService.fetchLocations()
+        // Trigger initial reload (in case the view model already loaded before binding)
         collectionView.reloadData()
     }
     
@@ -61,23 +62,17 @@ class FavouritesController: UIViewController {
         collectionView.dataSource = self
         collectionView.delegate = self
     }
-    @objc func contextObjectsDidChange(_ notification: Notification){
-        locations = CoreDataService.shared.fetchLocations()
-        collectionView.reloadData()
-
 }
-
         
-}
 // MARK: - UICollectionViewDataSource
 extension FavouritesController: UICollectionViewDataSource {
     
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return locations.count
+        return viewModel.numberOfItems()
     }
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let favouritesLocation = locations[indexPath.row]
+        let favouritesLocation = viewModel.item(at: indexPath)
         return collectionView.dequeueConfiguredReusableCell(
             using: favouritesCellRegistration,
             for: indexPath,
@@ -89,8 +84,8 @@ extension FavouritesController: UICollectionViewDataSource {
 extension FavouritesController: UICollectionViewDelegate{
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         let vc = DetailViewController()
-        
-        vc.locationCoordinates = CLLocationCoordinate2D(latitude: locations[indexPath.row].latitude, longitude: locations[indexPath.row].longitude)
+        let item = viewModel.item(at: indexPath)
+        vc.locationCoordinates = CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude)
         navigationController?.pushViewController(vc, animated: true)
     }
 }
@@ -98,7 +93,6 @@ extension FavouritesController: UICollectionViewDelegate{
 extension FavouritesController: UICollectionViewDelegateFlowLayout {
     
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
-        //let size = CGFloat((Float(view.frame.size.width) - Float(16) * 3) / 2)
         let width = (collectionView.frame.width - 48) / 2
         return CGSize(width: width, height: width)
     }
