@@ -1,4 +1,3 @@
-
 //
 //  SearchViewController.swift
 //  WeatherMap
@@ -35,18 +34,6 @@ class SearchViewController: UITableViewController {
         searchController.searchBar.delegate = self
         navigationItem.searchController = searchController
     }
-    
-    // MARK: - Helper
-   // func formatAddress(from placemark: MKPlacemark) -> String? {
-    //    let parts = [
-     //       placemark.thoroughfare,
-     //       placemark.locality,
-     //       placemark.administrativeArea,
-     //       placemark.country
-    //    ].compactMap { $0 }
-        
-     //   return parts.isEmpty ? nil : parts.joined(separator: ", ")
-    //}
 }
 
 // MARK: - UISearchResultsUpdating
@@ -57,13 +44,6 @@ extension SearchViewController: UISearchResultsUpdating {
     
     func performSearch() {
         guard let searchBarText = searchController.searchBar.text else { return }
-       // let trimmed = searchBarText.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-      //  if trimmed.isEmpty {
-       //     self.matchingLocations = []
-       //     self.tableView.reloadData()
-       //     return
-       // }
         
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = searchBarText
@@ -78,14 +58,9 @@ extension SearchViewController: UISearchResultsUpdating {
                 self.matchingLocations = response.mapItems
                 self.tableView.reloadData()
             }
-           
-           // DispatchQueue.main.async {
-           //     self.matchingLocations = response.mapItems
-           //     self.tableView.reloadData()
-            }
         }
     }
-
+}
 
 // MARK: - UISearchBarDelegate
 extension SearchViewController: UISearchBarDelegate {
@@ -116,16 +91,6 @@ extension SearchViewController {
             attributes: [.font: UIFont.systemFont(ofSize: 20, weight: .bold)]
         )
         
-        
-        
-        //if let address = formatAddress(from: mapItem.placemark), !address.isEmpty {
-        //    configuration.secondaryText = address
-        // } else if let coordinate = mapItem.placemark.location?.coordinate {
-        //      configuration.secondaryText = String(format: "%.5f, %.5f", coordinate.latitude, coordinate.longitude)
-        //  } else {
-        //      configuration.secondaryText = nil
-        //   }
-        
         configuration.image = UIImage(systemName: "location.fill.viewfinder")
         configuration.imageProperties.tintColor = .systemPurple
         cell.contentConfiguration = configuration
@@ -141,6 +106,5 @@ extension SearchViewController {
             navigationController?.pushViewController(vc, animated: true)
         }
     }
-    
     
 }

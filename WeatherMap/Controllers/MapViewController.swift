@@ -45,21 +45,6 @@ class MapViewController : UIViewController {
         
         navigationItem.backBarButtonItem = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
         
-        
-      
-        //Task {
-        //    do{
-        //        let weather = try await NetworkService.shared.getForecast(latitude: 40.8518, longitude: 14.2681)
-         //
-        //        print (weather)
-                
-        //    }catch let error {
-                
-        //        print(error)
-                
-        //    }
-       // }
-      //  locationManager.requestWhenInUseAuthorization()
     }
     func setupregion(){
         
@@ -98,7 +83,6 @@ class MapViewController : UIViewController {
     
     func locationButton(){
         let locationButton = CLLocationButton()
-        locationButton.setSize(height: 50, width: 50)
         locationButton.cornerRadius = 25
         locationButton.icon = .arrowFilled
         
@@ -107,6 +91,7 @@ class MapViewController : UIViewController {
                  view.trailingAnchor, paddingBottom: 8, paddingTrailing:8)
         locationButton.backgroundColor = .white
         locationButton.tintColor = .systemPurple
+        locationButton.setSize(height: 64, width: 64)
         locationButton.addTarget(self, action: #selector(getCurrentLocation), for: .touchUpInside)
     }
     
@@ -136,9 +121,6 @@ class MapViewController : UIViewController {
     }
     
     func populateMapWithAnnotations(){
-        
-       // let annotations = map.annotations
-      //  map.removeAnnotation(annotations as! MKAnnotation)
         
         for annotation in map.annotations{
             map.removeAnnotation(annotation)
@@ -224,3 +206,4 @@ extension MapViewController : MKMapViewDelegate{
     }
     
 }
+

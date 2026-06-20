@@ -10,7 +10,7 @@ import UIKit
 
 class CoreDataService {
     
-    // ✅ დაემატა shared ცვლადი ერორის გასასწორებლად
+
     static let shared = CoreDataService()
     
     let persistenceContainer: NSPersistentContainer = {
@@ -45,7 +45,7 @@ class CoreDataService {
     
     func fetchLocations() -> [Favourites] {
         let context = persistenceContainer.viewContext
-        // ✅ წაიშალა ზედმეტი სფეისი (Space) "FavouritesModel "
+        
         let fetchRequest = NSFetchRequest<Favourites>(entityName: "Favourites")
         let sortDescriptor = NSSortDescriptor(key: "name", ascending: true)
         fetchRequest.sortDescriptors = [sortDescriptor]
@@ -62,10 +62,10 @@ class CoreDataService {
     func locationExists(latitude: Double, longitude: Double) -> Bool{
         
         let context = persistenceContainer.viewContext
-        // ✅ წაიშალა ზედმეტი სფეისი
+  
         let fetchRequest = NSFetchRequest<Favourites>(entityName: "Favourites")
         
-        // ✅ დაემატა დამხურავი ფრჩხილი ბოლოში
+       
         let predicate = NSPredicate(format: "%K == %@ AND %K == %@", #keyPath(Favourites.latitude), latitude as NSNumber, #keyPath(Favourites.longitude), longitude as NSNumber)
         
         fetchRequest.predicate = predicate
@@ -74,8 +74,8 @@ class CoreDataService {
         do{
             results = try context.fetch(fetchRequest) as [NSManagedObject]
         }
-        catch let error{
-            print("error executing Results")
+        catch {
+            print("Error executing fetch request: \(error)")
         }
         return !results.isEmpty
     }
