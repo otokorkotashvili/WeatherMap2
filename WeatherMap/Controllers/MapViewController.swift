@@ -15,6 +15,7 @@ class MapViewController : UIViewController {
     let map = MKMapView()
     let locationManager = CLLocationManager()
     let longPress: UILongPressGestureRecognizer = UILongPressGestureRecognizer()
+    private var didShowCurrentLocationDetail = false
     
     var currentMap : MKMapType = .satellite{
         
@@ -35,6 +36,7 @@ class MapViewController : UIViewController {
         
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.requestWhenInUseAuthorization()
         map.addGestureRecognizer(longPress)
         longPress.addTarget(self, action: #selector(didAddAnnotation))
         populateMapWithAnnotations()
@@ -172,10 +174,35 @@ class MapViewController : UIViewController {
 
 extension MapViewController: CLLocationManagerDelegate {
     
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            manager.startUpdatingLocation()
+        default:
+            break
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        switch status {
+        case .authorizedWhenInUse, .authorizedAlways:
+            manager.startUpdatingLocation()
+        default:
+            break
+        }
+    }
+
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.first else { return }
         map.setRegion(MKCoordinateRegion(center: location.coordinate,span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)), animated: true)
         locationManager.stopUpdatingLocation()
+
+        if !didShowCurrentLocationDetail {
+            didShowCurrentLocationDetail = true
+            let vc = DetailViewController()
+            vc.locationCoordinates = location.coordinate
+            navigationController?.pushViewController(vc, animated: true)
+        }
     }
 }
 
