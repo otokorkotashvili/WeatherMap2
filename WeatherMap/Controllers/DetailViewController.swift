@@ -49,6 +49,7 @@ class DetailViewController : UIViewController {
         let vm = DetailViewModel(coordinate: coordinate)
         bind(to: vm)
         self.viewModel = vm
+        vm.updateFavouriteState()
         // kick off data
         vm.resolvePlace()
         vm.fetchWeather()
@@ -75,10 +76,10 @@ class DetailViewController : UIViewController {
         vm.onFavouriteChange = { [weak self] isFav in
             DispatchQueue.main.async {
                 if isFav {
-                    self?.favouritesButton.setTitle("Remove from favourites", for: .normal)
+                    self?.favouritesButton.setTitle("Remove From Favourites", for: .normal)
                     self?.favouritesButton.setTitleColor(.systemRed, for: .normal)
                 } else {
-                    self?.favouritesButton.setTitle("add to favourites", for: .normal)
+                    self?.favouritesButton.setTitle("Add To Favourites", for: .normal)
                     self?.favouritesButton.setTitleColor(.systemPurple, for: .normal)
                 }
             }
@@ -102,6 +103,11 @@ class DetailViewController : UIViewController {
         navigationController?.navigationBar.prefersLargeTitles = false
         navigationController?.navigationBar.backIndicatorImage = backButton
         navigationController?.navigationBar.backIndicatorTransitionMaskImage = backButton
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        viewModel?.updateFavouriteState()
     }
     
     func setupUI(){
@@ -142,7 +148,7 @@ class DetailViewController : UIViewController {
         tableView.setWidth(view.frame.size.width)
         tableView.anchor(top: currentStack.bottomAnchor, paddingTop: 8)
         view.addSubview(favouritesButton)
-        favouritesButton.setTitle("add to favourites", for: .normal)
+        favouritesButton.setTitle("Add To Favourites", for: .normal)
         favouritesButton.setTitleColor(.systemPurple, for: .normal)
         favouritesButton.anchor(top: tableView.bottomAnchor, paddingTop: 8)
         favouritesButton.centerX(inView: view)
@@ -235,4 +241,5 @@ extension DetailViewController: UITableViewDelegate, UITableViewDataSource {
         return "cloud"
     }
 }
+
 
